@@ -1,0 +1,20 @@
+{
+  "name": "rime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "web"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "test": "node --test packages/*/test/*.test.ts",
+    "scan": "node --experimental-strip-types packages/scanner/src/cli.ts",
+    "probe": "node --experimental-strip-types scripts/probe-reportdata.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,14 @@
+# Deployed via `phala deploy -c packages/agent/docker-compose.yml`. dstack
+# measures this file plus the image digest into RTMR3 — pin the image by
+# digest (not a mutable tag) once it's pushed somewhere, so the measurement
+# actually reflects a specific, reproducible build. Placeholder tag below
+# until Day 2's real push.
+services:
+  agent:
+    image: rime-agent:latest
+    restart: unless-stopped
+    environment:
+      - AGENT_REGISTRY_ADDRESS=${AGENT_REGISTRY_ADDRESS}
+      - AGENT_PRIVATE_KEY=${AGENT_PRIVATE_KEY}
+      - RPC_URL=${RPC_URL}
+      - RIME_HEARTBEAT_MS=${RIME_HEARTBEAT_MS:-1500000}

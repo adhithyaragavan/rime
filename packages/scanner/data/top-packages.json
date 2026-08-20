@@ -1,0 +1,20 @@
+[
+  "lodash","react","react-dom","express","axios","chalk","commander","debug",
+  "request","async","moment","underscore","uuid","glob","semver","yargs",
+  "webpack","babel-core","typescript","eslint","jest","mocha","chai","classnames",
+  "prop-types","redux","vue","next","tailwindcss","postcss","rxjs","socket.io",
+  "dotenv","cors","body-parser","mongoose","pg","mysql","sequelize","jsonwebtoken",
+  "bcrypt","passport","multer","nodemon","concurrently","cross-env","rimraf",
+  "fs-extra","chokidar","minimist","yargs-parser","inquirer","ora","chalk-animation",
+  "colors","figlet","boxen","execa","node-fetch","form-data","qs","cookie",
+  "cookie-parser","helmet","compression","morgan","winston","pino","joi","zod",
+  "ajv","yup","validator","dayjs","date-fns","luxon","numeral","big.js",
+  "decimal.js","uuid","nanoid","shortid","ws","socket.io-client","graphql",
+  "apollo-server","prisma","typeorm","knex","sqlite3","redis","ioredis","aws-sdk",
+  "stripe","twilio","nodemailer","sharp","jimp","puppeteer","playwright","cheerio",
+  "jsdom","htmlparser2","marked","showdown","highlight.js","prismjs","three",
+  "d3","chart.js","lodash.merge","lodash.get","tslib","core-js","regenerator-runtime",
+  "leftpad","left-pad","is-odd","is-even","is-number","kind-of","ansi-colors",
+  "strip-ansi","ansi-regex","supports-color","picocolors","ms","bytes","mime-types",
+  "content-type","statuses","on-finished","finalhandler","serve-static","send"
+]

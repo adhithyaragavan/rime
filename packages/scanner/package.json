@@ -1,0 +1,13 @@
+{
+  "name": "@rime/scanner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "rime": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@rime/shared": "*",
+    "viem": "^2.21.0"
+  }
+}
