@@ -1,6 +1,9 @@
 # Rime
 
-Verifiable supply-chain integrity for AI agents. Full context: `~/.claude/plans/5-verifiable-supply-chain-integrity-misty-sonnet.md`.
+Verifiable supply-chain integrity for AI agents. Full context:
+`~/.claude/plans/5-verifiable-supply-chain-integrity-misty-sonnet.md`
+(original plan) and `~/.claude/plans/okay-so-what-could-sleepy-donut.md`
+(the Phala Cloud → GCP TDX pivot).
 
 **The claim this project makes, in one sentence:** an `AgentRegistry` certificate
 means "this agent's audited dependency tree ran, unmodified, inside a genuine
@@ -14,11 +17,48 @@ one check — see "Never drop" in the plan.
 
 - [x] `packages/shared` — manifest schema, canonical hashing, commitment encoding. 10/10 tests.
 - [x] `packages/scanner` — dep-tree walk, 6 heuristics, osv-scanner + npm-audit-signatures wraps. 25/25 tests (shared+scanner combined).
-- [x] `contracts` — TDXQuote parsing, AgentRegistry, GatedVault, Deploy script. 20/20 tests.
-- [x] `packages/agent` — attest.ts, selfcheck.ts, index.ts, Dockerfile, compose. **Proven working end-to-end against the local dstack simulator** (see below) — the SDK's `getQuote()` hex-encoding quirk and the TDXQuote offset were both real bugs, both found and fixed this way.
+- [x] `contracts` — TDXQuote parsing, AgentRegistry, GatedVault, Deploy script. 20/20 tests, all against a mock verifier.
+- [x] `packages/agent` — attest.ts, selfcheck.ts, index.ts, quote-provider.ts, Dockerfile, compose. Proven working end-to-end against both the local dstack simulator **and real GCP TDX hardware**.
 - [x] `web` — React status page: on-chain certificate panel with live freshness countdown, manifest panel with findings table and client-side hash re-verification against the chain. Typechecks and builds clean; not yet wired to a real deployment.
-- [ ] Real quote fixture (`fixtures/real-quote.hex`) — **blocked on your Phala Cloud signup**, see below. This is now the only remaining unknown in the on-chain path.
+- [x] **Real quote fixture (`fixtures/real-quote.hex`)** — from a real GCP TDX Confidential VM (Phala Cloud's account top-up failed, so this went a different route — see below).
+- [x] **The gate: a real quote verifies against Automata's actual on-chain verifier on Base Sepolia.** `cast call ... verifyAndAttestOnChain(...)` → `true`, with our commitment echoed back in the return data. This was the single biggest open risk in the whole design, and it's now settled on real hardware, not just the simulator.
+- [ ] `AgentRegistry`/`GatedVault` not yet deployed to Base Sepolia — blocked only on a funded wallet (faucet, no card).
 - [ ] End-to-end rehearsal of the three demo acts against a real deployment.
+
+## Phala Cloud is blocked — read this before trying to deploy the agent there
+
+Account top-up failed (`Current balance: $0.00`, card declined). The
+fallback that actually worked: a **raw GCP TDX Confidential VM, no dstack**,
+using the standard Linux `configfs-tsm` interface directly. This isn't a
+lesser workaround — it's Automata's own documented path (their
+`tdx-attestation-sdk` README specifies exactly this GCP configuration:
+`c3-standard-*`, Ubuntu 22.04, `us-central1-{a,b,c}`) to the exact verifier
+this project calls.
+
+`packages/agent/src/quote-provider.ts` now has both paths behind one
+interface (`RIME_QUOTE_PROVIDER=dstack|configfs-tsm`, default `dstack`) —
+Phala Cloud still works the moment billing is fixed, nothing about that
+path was removed, it's just not what produced the current real-quote fixture.
+
+Getting another real quote (or a fresh one, e.g. with real deployment
+addresses baked into the commitment):
+
+```bash
+gcloud compute instances create rime-tdx-probe --zone=us-central1-a \
+  --machine-type=c3-standard-4 --confidential-compute-type=TDX \
+  --maintenance-policy=TERMINATE \
+  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud
+
+# on the VM:
+sudo apt-get install -y linux-modules-extra-gcp && sudo modprobe tdx_guest
+
+# from your machine, once RIME_QUOTE_PROVIDER=configfs-tsm code runs on the VM:
+RIME_QUOTE_PROVIDER=configfs-tsm node --experimental-strip-types \
+  scripts/generate-fixture.ts --out fixtures/real-quote.hex \
+  --audit-hash 0x<32 bytes> --agent 0x<20 bytes> --epoch 1
+
+gcloud compute instances delete rime-tdx-probe --zone=us-central1-a  # don't forget this — ~$0.20-0.25/hr while running
+```
 
 ## Chain: Base Sepolia — see `contracts/README.md`
 
@@ -63,31 +103,19 @@ Two non-obvious things cost real time to work out here, both documented in
 docker stop rime-dstack-sim
 ```
 
-`generate-fixture.ts`'s output already answered the two biggest open
-questions from Day 0, empirically, against the real SDK:
-- **report_data mode is `raw`** (not sha256'd) — `REPORT_DATA_IS_HASHED=false` is correct.
-- **`TDXQuote.sol`'s `REPORT_DATA_OFFSET` (568) is correct** — confirmed by cross-checking our own byte-offset parse against the SDK's own reported value.
+Simulator quotes are NOT hardware-signed and will always be rejected by the
+real on-chain verifier — useful for exercising the code path, not a
+substitute for the real thing.
 
-Simulator quotes are still NOT hardware-signed and will be rejected by the
-real on-chain verifier — the encoding/offset questions are settled, but
-whether a *real* quote verifies at all is not, and remains gated on the next
-step.
+## Remaining action item
 
-## Your action item (blocks the real on-chain path)
-
-1. Sign up for Phala Cloud, claim free credits, `npm i -g phala && phala auth login`.
-2. Deploy a hello-world container that calls `getQuote()` (packages/agent
-   already has everything needed — point `docker-compose.yml` at a built
-   image and `phala deploy -c packages/agent/docker-compose.yml`).
-3. From inside that deployment, run `scripts/generate-fixture.ts` against the
-   real dstack socket (no `DSTACK_SIMULATOR_ENDPOINT` — it defaults to
-   `/var/run/dstack.sock`), save the output as `fixtures/real-quote.hex`.
-4. Since the offset/mode questions are already settled, the OFFSET CHECK line
-   should just say PASS again — if it doesn't, something differs on real
-   hardware vs. the simulator and is worth a closer look before trusting
-   certify().
-
-Once you have that, the hard gate from the plan applies: if the real quote
-doesn't verify against the deployed Automata verifier on Base Sepolia
-(`forge test` against a fork, or a manual `cast call`), fall back to Plan B
-in the plan file rather than debugging DCAP on Day 1.
+1. Get a Base Sepolia wallet funded via a faucet (no card needed — e.g. the
+   Coinbase Developer Platform faucet). Put the private key in a local
+   `.env` (copy from `.env.example`) — don't paste it into chat.
+2. Deploy: `forge script contracts/script/Deploy.s.sol --rpc-url
+   https://base-sepolia-rpc.publicnode.com --broadcast`, with
+   `REPORT_DATA_IS_HASHED=false` (confirmed correct, see above).
+3. Wire the deployed addresses into `web/.env`.
+4. Rehearse the three demo acts (clean → certify → withdraw succeeds;
+   tampered → certify reverts; stale → withdraw reverts) and record the
+   video.

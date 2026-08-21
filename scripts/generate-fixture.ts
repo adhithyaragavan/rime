@@ -1,29 +1,37 @@
 #!/usr/bin/env node
 /**
- * Requests a real quote from whatever dstack endpoint is configured, writes
- * it as a fixture, and — this is the important part — cross-checks the SDK's
- * own report_data field against our offset-based extraction
- * (packages/shared/src/reportdata.ts, mirrored in contracts/src/lib/TDXQuote.sol).
- * If those two disagree, TDXQuote.REPORT_DATA_OFFSET is wrong and the
- * on-chain certify() path cannot be trusted yet — this check exists so that
- * bug surfaces here, in a script with a clear diagnostic, instead of as an
- * unexplained revert on-chain later.
+ * Requests a real quote from whichever provider is configured
+ * (RIME_QUOTE_PROVIDER=dstack|configfs-tsm, see
+ * packages/agent/src/quote-provider.ts), writes it as a fixture, and — this
+ * is the important part — cross-checks the provider's own report_data field
+ * against our offset-based extraction (packages/shared/src/reportdata.ts,
+ * mirrored in contracts/src/lib/TDXQuote.sol). If those two disagree,
+ * TDXQuote.REPORT_DATA_OFFSET is wrong and the on-chain certify() path
+ * cannot be trusted yet — this check exists so that bug surfaces here, in a
+ * script with a clear diagnostic, instead of as an unexplained revert
+ * on-chain later. (configfs-tsm has no such self-reported value to
+ * cross-check against — that verification already happened once,
+ * empirically, against real GCP TDX hardware; see the "Result" section of
+ * ~/.claude/plans/okay-so-what-could-sleepy-donut.md.)
  *
- * Against the LOCAL SIMULATOR (DSTACK_SIMULATOR_ENDPOINT=http://localhost:8090):
- * useful for exercising this whole code path, but the quote is NOT
- * hardware-signed and will be rejected by the real on-chain verifier. Only a
- * quote pulled from a real Phala Cloud deployment is a valid Day-0 fixture.
+ * Against the LOCAL SIMULATOR (RIME_QUOTE_PROVIDER=dstack,
+ * DSTACK_SIMULATOR_ENDPOINT=http://localhost:8090): useful for exercising
+ * the dstack code path, but the quote is NOT hardware-signed and will be
+ * rejected by the real on-chain verifier.
  *
  * Usage:
  *   DSTACK_SIMULATOR_ENDPOINT=http://localhost:8090 \
  *   node --experimental-strip-types scripts/generate-fixture.ts \
  *     --out fixtures/simulator-quote.hex \
  *     --audit-hash 0x<32 bytes> --agent 0x<20 bytes> --epoch 1
+ *
+ *   RIME_QUOTE_PROVIDER=configfs-tsm \
+ *   node --experimental-strip-types scripts/generate-fixture.ts --out fixtures/real-quote.hex ...
  */
 import { writeFile } from "node:fs/promises";
 import { sha256, type Address, type Hex } from "viem";
 
-import { makeDstackClient, requestAttestation } from "../packages/agent/src/attest.ts";
+import { makeQuoteProvider, requestAttestation } from "../packages/agent/src/attest.ts";
 
 function parseArgs(argv: string[]) {
   const get = (flag: string) => {
@@ -41,12 +49,12 @@ function parseArgs(argv: string[]) {
 async function main() {
   const { out, auditHash, agent, epoch } = parseArgs(process.argv.slice(2));
 
-  const endpoint = process.env.DSTACK_SIMULATOR_ENDPOINT;
-  console.log(`[generate-fixture] endpoint: ${endpoint ?? "(default dstack.sock — real CVM only)"}`);
+  const providerKind = process.env.RIME_QUOTE_PROVIDER ?? "dstack";
+  console.log(`[generate-fixture] provider: ${providerKind}`);
   console.log(`[generate-fixture] auditHash=${auditHash} agent=${agent} epoch=${epoch}`);
 
-  const client = makeDstackClient();
-  const result = await requestAttestation(client, auditHash, agent, epoch);
+  const provider = makeQuoteProvider();
+  const result = await requestAttestation(provider, auditHash, agent, epoch);
 
   await writeFile(out, result.quote.startsWith("0x") ? result.quote.slice(2) : result.quote);
   console.log(`[generate-fixture] quote written to ${out} (${result.quote.length / 2 - 1} bytes)`);

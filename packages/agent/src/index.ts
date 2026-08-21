@@ -22,7 +22,7 @@ import { createWalletClient, http, type Hex } from "viem";
 import { baseSepolia } from "viem/chains";
 
 import { auditHash, type AuditManifest } from "@rime/shared";
-import { makeDstackClient, requestAttestation } from "./attest.ts";
+import { makeQuoteProvider, requestAttestation } from "./attest.ts";
 import { verifyIntegrityOrThrow, IntegrityViolation } from "./selfcheck.ts";
 import { AGENT_REGISTRY_ABI } from "./registry-abi.ts";
 
@@ -49,11 +49,11 @@ async function certifyOnce(manifest: AuditManifest, epoch: bigint) {
   }
 
   const account = PRIVATE_KEY ? privateKeyToAccount(PRIVATE_KEY) : undefined;
-  const dstack = makeDstackClient();
+  const quoteProvider = makeQuoteProvider();
   const hash = auditHash(manifest);
 
   const agentAddress = account?.address ?? "0x0000000000000000000000000000000000000000";
-  const attestation = await requestAttestation(dstack, hash, agentAddress, epoch);
+  const attestation = await requestAttestation(quoteProvider, hash, agentAddress, epoch);
 
   console.log(`[agent] epoch ${epoch}: quote obtained, auditHash=${hash}`);
   if (attestation.sdkReportData && attestation.sdkReportData !== attestation.parsedReportData) {

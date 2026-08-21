@@ -17,6 +17,7 @@ RUN npm install --omit=dev
 COPY packages/shared packages/shared
 COPY packages/scanner packages/scanner
 COPY packages/agent packages/agent
+COPY scripts scripts
 
 # The manifest is a build artifact, not source — baked in at image build time
 # so the agent can never regenerate a more favorable one against itself at

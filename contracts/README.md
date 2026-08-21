@@ -50,8 +50,23 @@ well-known faucets (e.g. the Coinbase Developer Platform faucet).
   `AgentRegistry.isCertified`.
 - `script/Deploy.s.sol` — deploys both against a real `IDcapAttestation`.
 - `test/` — 20 tests, all against `MockDcapAttestation` (hardware-signature
-  verification stubbed out); see the root plan for the Day-0 gate that adds
-  a test against the real deployed verifier once a real quote fixture exists.
+  verification stubbed out). The real verifier has separately been
+  confirmed to accept a real quote — see below.
+
+## The gate: confirmed against a real quote
+
+`fixtures/real-quote.hex` (repo root's `../fixtures/`) is a real,
+hardware-signed TDX quote pulled from a GCP Confidential VM (Phala Cloud's
+account top-up was blocked — see the root README). It verifies against the
+real deployed contract above:
+
+```bash
+cast call 0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF \
+  "verifyAndAttestOnChain(bytes)(bool,bytes)" \
+  "0x$(cat ../fixtures/real-quote.hex)" \
+  --rpc-url https://base-sepolia-rpc.publicnode.com
+# → true
+```
 
 ## Commands
 
