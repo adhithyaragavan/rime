@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 docker run --rm \
-  -v "$(pwd)/vendor/simulator-build/run:/assets" \
+  -v "$(pwd)/scripts/simulator-run:/assets" \
   -v "$(pwd):/rime" \
   -w /rime \
   -e DSTACK_SIMULATOR_ENDPOINT=/assets/dstack.sock \

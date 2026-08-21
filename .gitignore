@@ -14,3 +14,4 @@ contracts/broadcast/
 *.manifest.json
 !fixtures/*.manifest.json
 vendor/
+scripts/simulator-run/
