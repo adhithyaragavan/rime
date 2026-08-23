@@ -34,13 +34,14 @@ export function buildCommitment(
 }
 
 /**
- * How dstack treats the bytes we hand to getQuote().
+ * How the quote provider treats the bytes we hand it for report_data.
  *
- * Some dstack versions pass report_data through to the TDX driver verbatim;
- * others hash it first (the driver takes 64 bytes, and hashing is how an SDK
- * accepts arbitrary-length input). Which one is in play decides what the
- * registry must compare against, and it cannot be determined from docs alone —
- * run `scripts/probe-reportdata.ts` against the real fixture on Day 0.
+ * Some TDX platforms pass report_data through verbatim; others hash it
+ * first (the driver takes a fixed 64 bytes, and hashing is how a
+ * variable-length input gets accepted). Which one is in play decides what
+ * the registry must compare against, and it cannot be determined from docs
+ * alone — confirmed empirically via `scripts/probe-reportdata.ts` against a
+ * real quote (see ARCHITECTURE.md): it's `raw`.
  */
 export type ReportDataMode =
   /** Quote contains our 32 bytes, right-padded to 64. */

@@ -2,8 +2,7 @@
 /**
  * `rime scan [dir]` — the entrypoint used both by the demo script and
  * by the agent's own self-check at boot. Writes the manifest to disk and
- * exits non-zero on a dirty verdict, so it composes in a shell pipeline
- * (`rime scan . && phala deploy ...`).
+ * exits non-zero on a dirty verdict, so it composes in a shell pipeline.
  */
 import { writeFile } from "node:fs/promises";
 import path from "node:path";

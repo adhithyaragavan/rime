@@ -12,13 +12,10 @@ dependency tree ran, unmodified, in a genuine enclave, as of N minutes ago"
 making non-trivial changes; it explains why each piece exists, not just what
 it does. `README.md` has current build status and outstanding action items.
 
-**Phala Cloud is blocked** (account top-up failed) — a real quote was
-obtained a different way instead: a raw GCP TDX Confidential VM via
-`configfs-tsm`, no dstack. It's already been proven against the real
+Quotes come from a real TDX guest's `configfs-tsm` interface (a GCP
+`c3-standard-4` Confidential VM, specifically) — proven against the real
 on-chain verifier (`fixtures/real-quote.hex`, see "The gate: passed, on
-real hardware" in `ARCHITECTURE.md`). Both quote sources are real code
-paths now (`packages/agent/src/quote-provider.ts`), not one blocked
-placeholder — see "Quote providers" below.
+real hardware" in `ARCHITECTURE.md`).
 
 ## Commands
 
@@ -26,7 +23,7 @@ placeholder — see "Quote providers" below.
 npm install                                              # installs all workspaces (packages/*, web)
 
 # Tests
-node --test packages/shared/test/*.test.ts packages/scanner/test/*.test.ts   # all TS tests (45 total)
+node --test packages/shared/test/*.test.ts packages/scanner/test/*.test.ts packages/agent/test/*.test.ts   # all TS tests
 node --test packages/shared/test/manifest.test.ts                            # single file
 cd contracts && forge test -vv                                               # all Solidity tests (20)
 cd contracts && forge test --match-test test_certify_succeedsWithCorrectCommitment -vv  # single test
@@ -39,11 +36,6 @@ node --experimental-strip-types packages/scanner/src/cli.ts <project-dir> [--off
 # Web
 cd web && npm run build     # tsc -b && vite build — typechecks + production build
 cd web && npm run dev       # local dev server
-
-# Local TEE dev (no Phala account needed — see below)
-./scripts/run-simulator.sh
-./scripts/dstack-exec.sh node --experimental-strip-types scripts/generate-fixture.ts --out fixtures/simulator-quote.hex --audit-hash 0x<32b> --agent 0x<20b> --epoch 1
-docker stop rime-dstack-sim
 ```
 
 There is no separate lint command at the root; `web` has `npm run lint`
@@ -85,7 +77,8 @@ identically everywhere it's computed or compared: `auditHash`.
 - **`contracts`** (Foundry) — where the claim is actually enforced, not just
   asserted. `AgentRegistry.certify()` checks three things: real TDX hardware
   (via Automata's deployed `IDcapAttestation`, called by address — not
-  reimplemented), an optional measurement allowlist, and
+  reimplemented, and **not `view`** — see ARCHITECTURE.md's "A bug only a
+  real deploy could catch"), an optional measurement allowlist, and
   `report_data == keccak256(abi.encode(auditHash, agent, epoch))`. That last
   check is the entire point of the project. `TDXQuote.sol`'s byte offsets
   for parsing a raw quote are empirically validated (see "Validated facts"
@@ -93,11 +86,12 @@ identically everywhere it's computed or compared: `auditHash`.
   `MockDcapAttestation` — hardware signature verification is Automata's
   problem, not re-tested here.
 - **`packages/agent`** — enclave runtime. Boot order matters:
-  load the manifest (baked into the image at build time, **never**
-  regenerated at runtime) → `selfcheck.ts` compares it against what's
-  actually installed and refuses to boot on mismatch → `attest.ts` requests
-  a quote (via whichever `QuoteProvider` is selected, see below) and calls
-  `certify()`, then re-certifies on a heartbeat under the freshness window.
+  load the manifest (baked in ahead of time, **never** regenerated at
+  runtime) → `selfcheck.ts` compares it against what's actually installed
+  and refuses to boot on mismatch → `attest.ts` requests a quote (via
+  `quote-provider.ts`'s `ConfigfsTsmQuoteProvider`) and calls `certify()`,
+  then re-certifies on a heartbeat under the freshness window. Runs as a
+  plain Node process under systemd on the TDX guest — no container layer.
 - **`web`** — status page polling `AgentRegistry` directly and recomputing
   `auditHash()` client-side to verify against what's on-chain, rather than
   trusting a displayed value.
@@ -110,36 +104,15 @@ independently verified (bytecode pulled from public RPCs, selector checked
 against the dispatch table) at that address on Base/Ethereum/Arbitrum
 Sepolia. Details and re-verification steps: `contracts/README.md`.
 
-### Quote providers
+### Quote provider
 
-`packages/agent/src/quote-provider.ts`, selected via
-`RIME_QUOTE_PROVIDER=dstack|configfs-tsm` (default `dstack`):
-- `DstackQuoteProvider` — production path, Phala Cloud or any dstack CVM.
-- `ConfigfsTsmQuoteProvider` — any raw TDX Confidential VM, no dstack.
-  Reads/writes `/sys/kernel/config/tsm/report/*/{inblob,outblob}` directly.
-  Needs root. This is what actually produced `fixtures/real-quote.hex`
-  (manually, on a GCP `c3-standard-4` VM, before this provider existed to
-  automate it).
-
-Tradeoff, stated once so it doesn't get lost: dstack measures the container
-(RTMR3 = compose + image digest); raw `configfs-tsm` only measures the VM's
-boot chain. The report_data binding and freshness window — the two things
-on the "never drop" list — are unaffected either way.
-
-### dstack simulator gotchas
-
-Two non-obvious things, both documented at the top of `scripts/run-simulator.sh`:
-1. Doesn't build natively on macOS (`sev` crate has a Linux-only cfg gate)
-   — built inside a container (`vendor/simulator-build/`) instead.
-2. Listens on Unix sockets, not a TCP port. Docker Desktop for Mac doesn't
-   pass bind-mounted Unix sockets through to the host reliably, so anything
-   that talks to it must run inside a container on the same volume
-   (`scripts/dstack-exec.sh`) — not directly from a host terminal.
-
-Simulator quotes are structurally real (same offsets, same encoding) but
-never hardware-signed — useful for validating data-layout logic, useless
-for testing whether Automata's on-chain signature check passes. That check
-has since been done for real — see "Quote providers" above.
+`packages/agent/src/quote-provider.ts`'s `ConfigfsTsmQuoteProvider` reads/
+writes `/sys/kernel/config/tsm/report/*/{inblob,outblob}` directly — the
+standard Linux TEE attestation interface, no vendor SDK involved. Needs
+root. MRTD/RTMRs measure the VM's boot chain, not a specific containerized
+workload — a stated tradeoff, not an oversight (see ARCHITECTURE.md's
+"Quote provider" section); the report_data binding and freshness window
+are unaffected.
 
 ### Getting a real quote off a GCP TDX Confidential VM
 
@@ -153,5 +126,6 @@ gcloud compute instances create <name> --zone=us-central1-a \
 sudo apt-get install -y linux-modules-extra-gcp && sudo modprobe tdx_guest
 sudo mkdir /sys/kernel/config/tsm/report/t1   # fails with ENOENT if TDX isn't really active
 ```
-`ConfigfsTsmQuoteProvider` automates the read/write from here. Cost is
-~$0.20–0.25/hr — **delete the VM** the moment you're done with it.
+`ConfigfsTsmQuoteProvider` automates the read/write from here — see
+`scripts/generate-fixture.ts`. Cost is ~$0.20–0.25/hr — **delete the VM**
+the moment you're done with it.

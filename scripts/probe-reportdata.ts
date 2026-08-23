@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
  * Day-0 gate script. Settles the single biggest integration risk in the plan:
- * does dstack's getQuote() put our commitment into report_data verbatim
- * ("raw" mode), or does it sha256 it first ("sha256" mode)?
+ * does a real quote's report_data hold our commitment verbatim ("raw"
+ * mode), or does it sha256 it first ("sha256" mode)?
  *
- * Prerequisite: fixtures/real-quote.hex must exist — a real TDX quote pulled
- * from a container running on Phala Cloud (not the simulator; simulator
- * quotes aren't hardware-signed and prove nothing about this). See the plan's
- * Day 0 section for how to get one: deploy a hello-world container that
- * calls getQuote(commitmentHex) with a KNOWN commitment (print it before
- * calling getQuote, save both), then commit the quote bytes here.
+ * Prerequisite: fixtures/real-quote.hex must exist — a real, hardware-signed
+ * TDX quote (not a simulator quote — those aren't hardware-signed and prove
+ * nothing about this). Generated via scripts/generate-fixture.ts on a real
+ * TDX Confidential VM — see ARCHITECTURE.md's "Live agent" section.
  *
  * Usage:
  *   node --experimental-strip-types scripts/probe-reportdata.ts \
@@ -47,9 +45,9 @@ async function main() {
     quoteHex = (await readFile(quotePath, "utf8")).trim();
   } catch {
     console.error(
-      `Could not read ${quotePath}. This script needs a REAL quote from Phala Cloud ` +
-        `(simulator quotes are unsigned and will not help determine this). ` +
-        `See the Day 0 section of the plan.`,
+      `Could not read ${quotePath}. This script needs a REAL, hardware-signed quote ` +
+        `(simulator quotes are unsigned and will not help determine this) — see ` +
+        `scripts/generate-fixture.ts.`,
     );
     process.exit(2);
   }
@@ -83,10 +81,9 @@ async function main() {
     console.log("RESULT: NEITHER matched. Something else is going on:");
     console.log("  - Is TDXQuote.REPORT_DATA_OFFSET (568) actually correct for this quote?");
     console.log("    Dump the full quote hex and locate the commitment bytes manually.");
-    console.log("  - Did dstack apply a DIFFERENT hash (sha512, keccak) or padding scheme?");
+    console.log("  - Was a DIFFERENT hash (sha512, keccak) or padding scheme applied?");
     console.log("  - Is this actually a TDX v4 quote, or a different version/format?");
-    console.log("  This blocks the on-chain path — fall back to Plan B (see the plan file)");
-    console.log("  if not resolved quickly.");
+    console.log("  This blocks the on-chain path — resolve before trusting certify().");
     process.exit(1);
   }
 }

@@ -56,14 +56,6 @@ async function certifyOnce(manifest: AuditManifest, epoch: bigint) {
   const attestation = await requestAttestation(quoteProvider, hash, agentAddress, epoch);
 
   console.log(`[agent] epoch ${epoch}: quote obtained, auditHash=${hash}`);
-  if (attestation.sdkReportData && attestation.sdkReportData !== attestation.parsedReportData) {
-    console.warn(
-      "[agent] SDK-reported report_data does not match our own offset-based parse. " +
-        "This means TDXQuote.sol's REPORT_DATA_OFFSET is likely wrong for this dstack " +
-        "version — re-run scripts/generate-fixture.ts and fix the offset before trusting " +
-        "any on-chain certify() call.",
-    );
-  }
 
   if (!account || !REGISTRY_ADDRESS) return;
 

@@ -83,7 +83,7 @@ contract AgentRegistry {
     /**
      * @notice Certify that `msg.sender` (the agent itself) is currently running
      * the audited code committed to by `auditHash`, proven by a fresh TDX quote.
-     * @param quote Raw TDX v4 quote from the agent's enclave (dstack getQuote()).
+     * @param quote Raw TDX v4 quote from the agent's enclave.
      * @param auditHash keccak256 of the canonicalized AuditManifest (see
      * packages/shared/src/manifest.ts::auditHash) that the scanner produced.
      * @param epoch Caller-chosen nonce/round, must match what was bound into

@@ -56,9 +56,8 @@ well-known faucets (e.g. the Coinbase Developer Platform faucet).
 ## The gate: confirmed against a real quote
 
 `fixtures/real-quote.hex` (repo root's `../fixtures/`) is a real,
-hardware-signed TDX quote pulled from a GCP Confidential VM (Phala Cloud's
-account top-up was blocked — see the root README). It verifies against the
-real deployed contract above:
+hardware-signed TDX quote pulled from a GCP Confidential VM via
+`configfs-tsm`. It verifies against the real deployed contract above:
 
 ```bash
 cast call 0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF \
