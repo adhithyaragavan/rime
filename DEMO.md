@@ -11,7 +11,7 @@ Frontend: `cd web && npm run dev` → http://localhost:5173/
 
 ## Recording-day pre-flight (do this before hitting record)
 
-1. Create the VM (README.md "Live agent"):
+1. Create the VM (README.md "Running the live agent"):
    ```bash
    gcloud compute instances create rime-agent-live --zone=us-central1-a \
      --machine-type=c3-standard-4 --confidential-compute-type=TDX \

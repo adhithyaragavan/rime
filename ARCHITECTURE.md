@@ -150,9 +150,10 @@ checked**, not just asserted.
   payload, not a real treasury design. All three demo acts (clean/
   tampered/stale) are enforced by one `require`.
 
-20 Foundry tests, all against `MockDcapAttestation` (a stubbed verifier —
-hardware signature checking is Automata's problem, not something worth
-re-testing here). Covers: correct commitment succeeds; wrong auditHash,
+The Foundry test suite runs entirely against `MockDcapAttestation` (a
+stubbed verifier — hardware signature checking is Automata's problem, not
+something worth re-testing here). Covers: correct commitment succeeds; wrong
+auditHash,
 wrong agent, wrong epoch, or hardware-check failure all revert; freshness
 expiry flips `isCertified` to false; re-certifying extends the window; both
 `reportDataIsHashed` modes; the measurement allowlist. See
@@ -258,9 +259,7 @@ Base Sepolia accepts it.
 `c3-standard-*`, Ubuntu 22.04, `us-central1-{a,b,c}` — this is Automata's
 own documented configuration for their `tdx-attestation-sdk`, the same
 verifier this project calls; getting a quote this way isn't a workaround,
-it's the vendor's documented path. See
-`~/.claude/plans/okay-so-what-could-sleepy-donut.md` for the full trail of
-how this was arrived at.
+it's the vendor's documented path.
 
 ## Chain
 
@@ -289,8 +288,7 @@ clean (the live `certify()` above), tampered (a real quote's report_data
 checked against a deliberately wrong `auditHash` — reverted with a fully
 decoded `CommitmentMismatch(expected, got)`), and stale (a throwaway
 registry with a 15-second freshness window — `isCertified()` `true`
-immediately, `false` 20 seconds later). See `README.md`'s "Status" section
-for transaction/detail links.
+immediately, `false` 20 seconds later). See `DEMO.md` for the walkthrough.
 
 ### A bug only a real deploy could catch
 
@@ -345,12 +343,15 @@ WantedBy=multi-user.target
 
 `User=root` because `ConfigfsTsmQuoteProvider` needs root to write under
 `/sys/kernel/config/tsm/report`. Confirmed `certify()` succeeded for real
-(see "Chain" above), then the VM was stopped — see `README.md`'s "Live
-agent" section for the exact recreate/teardown commands. One thing worth
-knowing if this comes back: **the agent's own signing key needs its own
-gas**, separate from whatever funded the contract deploy — that's a
-distinct wallet the agent signs `certify()` transactions with, and it
-starts at zero.
+(see "Chain" above), then the VM was stopped — see `README.md`'s "Running
+the live agent" section for the exact recreate/teardown commands.
+
+The agent's identity is `0x5ac20A5A6bf88338aF2651a4263023D2A68636bC`. One
+thing worth knowing if this comes back: **the agent's own signing key needs
+its own gas**, separate from whatever funded the contract deploy — that's a
+distinct wallet the agent signs `certify()` transactions with, and it starts
+at zero. Both wallets sit on faucet-scale balances, so top up from a faucet
+or transfer a little from the deploy wallet before reactivating.
 
 ## Local dev tooling notes
 
