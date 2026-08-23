@@ -26,8 +26,11 @@ one check — see "Never drop" in the plan.
   Registry: [`0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4`](https://sepolia.basescan.org/address/0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4),
   Vault: [`0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`](https://sepolia.basescan.org/address/0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336).
   Constructor state verified on-chain: `dcap` matches the real Automata verifier, `freshnessWindow=1800`, `reportDataIsHashed=false`.
-- [x] **The agent is running live**, on a real GCP TDX Confidential VM (`rime-agent-live`, systemd-managed), calling `certify()` for real. `isCertified()` for the agent address returns `true` on-chain right now. **This VM runs continuously and costs money the whole time** — see "Live agent" below for how to check on it and how to stop it.
-- [ ] Rehearse the tampered/stale acts against the live deployment and record the demo video.
+- [x] **All three demo acts verified for real, on-chain, with real hardware-signed quotes.**
+  - *Clean*: the live agent's `certify()` succeeded on the production registry — [`0x5e5a...`](https://sepolia.basescan.org/tx/0xc10a35fc4e1848ad6269338ef682c75c136102d0d689a09c2574b6b88c8bb3fc), `isCertified()` returned `true`.
+  - *Tampered*: a real quote's report_data cross-checked against a deliberately wrong `auditHash` — `certify()` reverted with `CommitmentMismatch(expected, got)`, both values fully decoded.
+  - *Stale*: a throwaway registry with a 15-second freshness window — `isCertified()` was `true` immediately after certifying, `false` 20 seconds later.
+  No demo video — this project isn't doing one. The live agent VM (`rime-agent-live`) has been **stopped and deleted**; see "Live agent" below to bring it back if needed.
 
 ## Phala Cloud is blocked — read this before trying to deploy the agent there
 
@@ -113,34 +116,40 @@ substitute for the real thing.
 
 ## Live agent
 
-`rime-agent-live` (GCP, `us-central1-a`, `c3-standard-4`) runs the actual
-agent as a systemd service (`rime-agent.service`), re-certifying every 25
-minutes. **This costs ~$0.20–0.25/hr the entire time it's running** — it is
-not a one-shot probe like the other VMs referenced elsewhere in this repo.
+Ran as `rime-agent-live` (GCP, `us-central1-a`, `c3-standard-4`) — a
+systemd service (`rime-agent.service`) re-certifying every 25 minutes.
+**It's been stopped and deleted** (a running TDX VM costs ~$0.20–0.25/hr
+the entire time it's up, and there's no ongoing need for it with no demo
+to run). To bring it back:
 
 ```bash
-# check on it
-gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo systemctl status rime-agent.service --no-pager"
-gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo journalctl -u rime-agent.service -f"   # tail logs
+gcloud compute instances create rime-agent-live --zone=us-central1-a \
+  --machine-type=c3-standard-4 --confidential-compute-type=TDX \
+  --maintenance-policy=TERMINATE \
+  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud
+# then: install linux-modules-extra-gcp + modprobe tdx_guest + Node 22,
+# copy the repo + .env over, npm install, and the systemd unit described
+# in ARCHITECTURE.md's "Live agent" section.
 
-# STOP IT WHEN DONE — this is the only way to stop paying for it
+# check on it / stop it again
+gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo systemctl status rime-agent.service --no-pager"
 gcloud compute instances delete rime-agent-live --zone=us-central1-a
 ```
 
 Agent identity: `0x5ac20A5A6bf88338aF2651a4263023D2A68636bC` — funded
 directly from the deploy wallet (an agent's signing key needs its own gas
 to submit `certify()`, separate from whatever funded the deploy). Both
-wallets are running on faucet-scale balances (fractions of a cent); if the
-heartbeat needs to keep running for a long demo window, top up via a
-faucet or another small transfer from the deploy wallet.
+wallets are on faucet-scale balances (fractions of a cent) — top up via a
+faucet or a small transfer from the deploy wallet before reactivating.
 
-## Remaining action item
+## State
 
-1. Rehearse the tampered/stale acts against this live deployment (tamper a
-   dependency, rescan, watch `certify()` revert; let the freshness window
-   lapse, watch `withdraw()` revert) and record the video.
-2. Stop `rime-agent-live` when done — see above.
+Everything the core claim depends on has been proven for real, on-chain:
+the report_data binding, the freshness window, and the DCAP hardware
+check — see "Status" above for the three verified acts, and
+`contracts/README.md` / `ARCHITECTURE.md` for the full trail including the
+`view`/`STATICCALL` bug that blocked the first deploy attempt.
 
-If time is short, `fixtures/real-quote.hex` plus a `cast call` to
-`verifyAndAttestOnChain` is a legitimate, honest fallback for demonstrating
-the core claim without a live agent running — see `contracts/README.md`.
+`fixtures/real-quote.hex` plus a `cast call` to `verifyAndAttestOnChain`
+remains the fastest way to re-demonstrate the core claim without spinning
+up hardware — see `contracts/README.md`.

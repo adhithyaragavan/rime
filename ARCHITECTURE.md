@@ -304,9 +304,18 @@ re-verification steps in `contracts/README.md`.
 `GatedVault` at `0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`. Constructor
 state verified by reading it back on-chain (`dcap`, `owner`,
 `freshnessWindow`, `reportDataIsHashed` all match what `Deploy.s.sol` was
-given). A live agent (see `README.md`'s "Live agent" section) has
-successfully called `certify()` against this deployment — `isCertified()`
-returns `true` for it right now.
+given). A live agent (see "Live agent" below) called `certify()` against
+this deployment for real — confirmed via transaction receipt
+(`status: 1`, `Certified` event fired) and an on-chain `isCertified()`
+read, both `true`.
+
+All three demo acts have since been verified for real, on-chain, no mocks:
+clean (the live `certify()` above), tampered (a real quote's report_data
+checked against a deliberately wrong `auditHash` — reverted with a fully
+decoded `CommitmentMismatch(expected, got)`), and stale (a throwaway
+registry with a 15-second freshness window — `isCertified()` `true`
+immediately, `false` 20 seconds later). See `README.md`'s "Status" section
+for transaction/detail links.
 
 ### A bug only a real deploy could catch
 
@@ -332,6 +341,42 @@ latter (called from our contract, where it does) failed with the same
 signature every time. The mock's fix — `callCount` that actually
 increments — makes this class of bug fail a unit test again if it
 regresses, rather than passing 20/20 while being wrong.
+
+## Live agent
+
+Ran the actual production runtime (`packages/agent/src/index.ts`,
+`RIME_QUOTE_PROVIDER=configfs-tsm`) on a real GCP TDX Confidential VM
+(`rime-agent-live`), as a systemd service rather than a bare background
+process — needed to survive SSH disconnects and auto-restart on failure:
+
+```ini
+[Unit]
+Description=Rime agent — TDX attestation + on-chain certify heartbeat
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/<user>/rime
+EnvironmentFile=/home/<user>/rime/.env
+Environment=RIME_QUOTE_PROVIDER=configfs-tsm
+Environment=NODE_OPTIONS=--experimental-strip-types
+ExecStart=/usr/bin/node packages/agent/src/index.ts
+Restart=on-failure
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`User=root` because `ConfigfsTsmQuoteProvider` needs root to write under
+`/sys/kernel/config/tsm/report`. Confirmed `certify()` succeeded for real
+(see "Chain" above), then the VM was stopped — see `README.md`'s "Live
+agent" section for the exact recreate/teardown commands. One thing worth
+knowing if this comes back: **the agent's own signing key needs its own
+gas**, separate from whatever funded the contract deploy — that's a
+distinct wallet the agent signs `certify()` transactions with, and it
+starts at zero.
 
 ## Local dev tooling notes
 
