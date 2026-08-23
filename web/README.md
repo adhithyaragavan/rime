@@ -7,10 +7,10 @@ verify against what's actually certified on-chain, and previews a
 money consequence.
 
 A pinned demo panel switches between the three verified acts (clean /
-tampered / stale — see the repo root `README.md`'s "Status" section and
-`DEMO.md`) by pointing the same hooks at different (real, already-deployed)
-manifests and registries. Nothing in the acts is fabricated — the mismatch
-and expiry are genuine recomputations against real on-chain state.
+tampered / stale — see the repo root `DEMO.md`) by pointing the same hooks
+at different (real, already-deployed) manifests and registries. Nothing in
+the acts is fabricated — the mismatch and expiry are genuine recomputations
+against real on-chain state.
 
 ## Run it
 

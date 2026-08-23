@@ -150,9 +150,10 @@ checked**, not just asserted.
   payload, not a real treasury design. All three demo acts (clean/
   tampered/stale) are enforced by one `require`.
 
-21 Foundry tests, all against `MockDcapAttestation` (a stubbed verifier —
-hardware signature checking is Automata's problem, not something worth
-re-testing here). Covers: correct commitment succeeds; wrong auditHash,
+The Foundry test suite runs entirely against `MockDcapAttestation` (a
+stubbed verifier — hardware signature checking is Automata's problem, not
+something worth re-testing here). Covers: correct commitment succeeds; wrong
+auditHash,
 wrong agent, wrong epoch, or hardware-check failure all revert; freshness
 expiry flips `isCertified` to false; re-certifying extends the window; both
 `reportDataIsHashed` modes; the measurement allowlist. See
@@ -287,8 +288,7 @@ clean (the live `certify()` above), tampered (a real quote's report_data
 checked against a deliberately wrong `auditHash` — reverted with a fully
 decoded `CommitmentMismatch(expected, got)`), and stale (a throwaway
 registry with a 15-second freshness window — `isCertified()` `true`
-immediately, `false` 20 seconds later). See `README.md`'s "Status" section
-for transaction/detail links.
+immediately, `false` 20 seconds later). See `DEMO.md` for the walkthrough.
 
 ### A bug only a real deploy could catch
 
