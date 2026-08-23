@@ -23,10 +23,11 @@ one check — see "Never drop" in the plan.
 - [x] **Real quote fixture (`fixtures/real-quote.hex`)** — from a real GCP TDX Confidential VM (Phala Cloud's account top-up failed, so this went a different route — see below).
 - [x] **The gate: a real quote verifies against Automata's actual on-chain verifier on Base Sepolia.** `cast call ... verifyAndAttestOnChain(...)` → `true`, with our commitment echoed back in the return data. This was the single biggest open risk in the whole design, and it's now settled on real hardware, not just the simulator.
 - [x] **`AgentRegistry`/`GatedVault` deployed to Base Sepolia.**
-  Registry: [`0x7e1cd19060a1179efaCC0c40d649131337129a43`](https://sepolia.basescan.org/address/0x7e1cd19060a1179efaCC0c40d649131337129a43),
-  Vault: [`0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4`](https://sepolia.basescan.org/address/0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4).
+  Registry: [`0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4`](https://sepolia.basescan.org/address/0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4),
+  Vault: [`0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`](https://sepolia.basescan.org/address/0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336).
   Constructor state verified on-chain: `dcap` matches the real Automata verifier, `freshnessWindow=1800`, `reportDataIsHashed=false`.
-- [ ] End-to-end rehearsal of the three demo acts against the real deployment — needs the agent actually running on real TDX hardware to call `certify()` live.
+- [x] **The agent is running live**, on a real GCP TDX Confidential VM (`rime-agent-live`, systemd-managed), calling `certify()` for real. `isCertified()` for the agent address returns `true` on-chain right now. **This VM runs continuously and costs money the whole time** — see "Live agent" below for how to check on it and how to stop it.
+- [ ] Rehearse the tampered/stale acts against the live deployment and record the demo video.
 
 ## Phala Cloud is blocked — read this before trying to deploy the agent there
 
@@ -110,18 +111,35 @@ Simulator quotes are NOT hardware-signed and will always be rejected by the
 real on-chain verifier — useful for exercising the code path, not a
 substitute for the real thing.
 
+## Live agent
+
+`rime-agent-live` (GCP, `us-central1-a`, `c3-standard-4`) runs the actual
+agent as a systemd service (`rime-agent.service`), re-certifying every 25
+minutes. **This costs ~$0.20–0.25/hr the entire time it's running** — it is
+not a one-shot probe like the other VMs referenced elsewhere in this repo.
+
+```bash
+# check on it
+gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo systemctl status rime-agent.service --no-pager"
+gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo journalctl -u rime-agent.service -f"   # tail logs
+
+# STOP IT WHEN DONE — this is the only way to stop paying for it
+gcloud compute instances delete rime-agent-live --zone=us-central1-a
+```
+
+Agent identity: `0x5ac20A5A6bf88338aF2651a4263023D2A68636bC` — funded
+directly from the deploy wallet (an agent's signing key needs its own gas
+to submit `certify()`, separate from whatever funded the deploy). Both
+wallets are running on faucet-scale balances (fractions of a cent); if the
+heartbeat needs to keep running for a long demo window, top up via a
+faucet or another small transfer from the deploy wallet.
+
 ## Remaining action item
 
-Contracts are deployed and `web/.env` is wired to them (both `.env` files
-are gitignored — the deploy wallet and a freshly-generated agent identity
-live only locally, not in git). What's left:
-
-1. Get the agent actually running on real TDX hardware (a GCP TDX
-   Confidential VM, or Phala Cloud once unblocked) with `AGENT_PRIVATE_KEY`
-   set to the agent identity in `.env`, so it can call `certify()` for real.
-2. Rehearse the three demo acts (clean → certify → withdraw succeeds;
-   tampered → certify reverts; stale → withdraw reverts) and record the
-   video.
+1. Rehearse the tampered/stale acts against this live deployment (tamper a
+   dependency, rescan, watch `certify()` revert; let the freshness window
+   lapse, watch `withdraw()` revert) and record the video.
+2. Stop `rime-agent-live` when done — see above.
 
 If time is short, `fixtures/real-quote.hex` plus a `cast call` to
 `verifyAndAttestOnChain` is a legitimate, honest fallback for demonstrating

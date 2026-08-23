@@ -300,12 +300,38 @@ actually calling it with a real quote — see above). Full detail and
 re-verification steps in `contracts/README.md`.
 
 **Deployed** to Base Sepolia:
-`AgentRegistry` at `0x7e1cd19060a1179efaCC0c40d649131337129a43`,
-`GatedVault` at `0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4`. Constructor
+`AgentRegistry` at `0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4`,
+`GatedVault` at `0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`. Constructor
 state verified by reading it back on-chain (`dcap`, `owner`,
 `freshnessWindow`, `reportDataIsHashed` all match what `Deploy.s.sol` was
-given). No agent has called `certify()` against this deployment yet —
-`isCertified()` correctly returns `false`.
+given). A live agent (see `README.md`'s "Live agent" section) has
+successfully called `certify()` against this deployment — `isCertified()`
+returns `true` for it right now.
+
+### A bug only a real deploy could catch
+
+The **first** deployment (a different address, since replaced) had
+`IDcapAttestation.sol` declaring `verifyAndAttestOnChain` as `view`.
+Automata's real function is `external payable` — it writes attestation
+state, it's not a pure read. Declaring it `view` made Solidity compile the
+call as a `STATICCALL`, which the EVM silently reverts with **zero return
+data** the instant the callee touches storage. Every layer — viem,
+`cast call`, three different RPC providers — reported "execution reverted
+for an unknown reason" with no decodable cause, because there genuinely
+was no revert data to decode.
+
+Why 20 passing unit tests never caught this: `MockDcapAttestation` was
+*also* declared `view`, so it never touched storage and could never trip
+the STATICCALL restriction. A read-only mock conforms to a `view` interface
+exactly as well as it conforms to a correct one — the bug was invisible to
+every offline test and only surfaced against the real contract, on a real
+chain, mid-deploy. Diagnosed by testing `verifyAndAttestOnChain` and
+`certify()` as **separate** `cast call`s: the former (called from an EOA,
+where Solidity's STATICCALL restriction doesn't apply) succeeded; the
+latter (called from our contract, where it does) failed with the same
+signature every time. The mock's fix — `callCount` that actually
+increments — makes this class of bug fail a unit test again if it
+regresses, rather than passing 20/20 while being wrong.
 
 ## Local dev tooling notes
 
