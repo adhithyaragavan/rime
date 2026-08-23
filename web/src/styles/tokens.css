@@ -1,0 +1,73 @@
+/* Design tokens: light by default, dark under prefers-color-scheme, no
+ * external fonts (system stack) so this works fully offline at judging. */
+:root {
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --panel-raised: #ffffff;
+  --text: #1a1a1e;
+  --muted: #6b6b76;
+  --border: #e2e2e6;
+
+  --good: #16794f;
+  --good-bg: #e6f6ee;
+  --bad: #b3261e;
+  --bad-bg: #fbe9e7;
+  --warn: #92600a;
+  --warn-bg: #fff3d6;
+
+  /* Brand accent — pulled directly from public/favicon.svg /
+   * src/assets/hero.png, which were the only place these colors existed
+   * before this token was introduced. */
+  --accent: #7e14ff;
+  --accent-2: #863bff;
+  --accent-soft: #f2e9ff;
+  --accent-contrast: #ffffff;
+
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Type scale */
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.5rem;
+  --fs-hero: clamp(2.5rem, 6vw, 4rem);
+
+  /* Spacing scale */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-12: 48px;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121214;
+    --panel: #1c1c20;
+    --panel-raised: #232328;
+    --text: #eceef0;
+    --muted: #9a9aa6;
+    --border: #303036;
+
+    --good: #4ade9a;
+    --good-bg: #123625;
+    --bad: #ff7a70;
+    --bad-bg: #3a1613;
+    --warn: #ffcc66;
+    --warn-bg: #3a2c0c;
+
+    --accent: #a45bff;
+    --accent-2: #863bff;
+    --accent-soft: #241537;
+    --accent-contrast: #121214;
+  }
+}

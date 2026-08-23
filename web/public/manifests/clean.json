@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "agent": {
+    "name": "demo-agent",
+    "version": "0.1.0"
+  },
+  "codeHash": "0x501701156aad0056549361aa18b3084695917daa698b7b09cf80bda0ad531e58",
+  "lockfileHash": "0x2d719b0bd99d2f0e15bccbdc0fe7ae63c1dae6eb23723179727f471bc0913a24",
+  "depCount": 1,
+  "scanner": {
+    "name": "agentcert-scanner",
+    "version": "0.1.0",
+    "policy": "default-v1"
+  },
+  "findings": [],
+  "verdict": "clean",
+  "scannedAt": 1787236975
+}

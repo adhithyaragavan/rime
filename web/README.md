@@ -1,32 +1,46 @@
-# React + TypeScript + Vite
+# Rime — web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Status page for the `AgentRegistry` certificate: polls the chain directly
+via viem, recomputes `auditHash()` client-side from the audit manifest to
+verify against what's actually certified on-chain, and previews a
+`GatedVault.withdraw()` call so "the certificate is stale" has a visible
+money consequence.
 
-Currently, two official plugins are available:
+A pinned demo panel switches between the three verified acts (clean /
+tampered / stale — see the repo root `README.md`'s "Status" section and
+`DEMO.md`) by pointing the same hooks at different (real, already-deployed)
+manifests and registries. Nothing in the acts is fabricated — the mismatch
+and expiry are genuine recomputations against real on-chain state.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run it
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install     # from the repo root, installs all workspaces
+cd web && npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Reads config from `web/.env` (`VITE_REGISTRY_ADDRESS`, `VITE_AGENT_ADDRESS`,
+`VITE_RPC_URL`, `VITE_STALE_REGISTRY_ADDRESS`, `VITE_VAULT_ADDRESS`) — see
+`src/lib/config.ts` for defaults.
+
+## Build
+
+```bash
+npm run build   # tsc -b && vite build
+npm run lint    # oxlint
+```
+
+## Constraints worth knowing before touching this
+
+- **No external fonts or CDN dependencies** — the page must work fully
+  offline (judging may have no network beyond the RPC). System font stack
+  only; see `src/styles/tokens.css`.
+- No UI framework, no Tailwind, no icon library — hand-written CSS, kept
+  intentionally small.
+- `@rime/shared` resolves through the npm-workspace symlink to raw
+  TypeScript source; Vite transpiles it directly. Don't add a build step
+  in `packages/shared` that would break that resolution.
+- All local imports use explicit `.ts`/`.tsx` extensions
+  (`verbatimModuleSyntax` + `allowImportingTsExtensions` in
+  `tsconfig.app.json`).
+- Linter is **oxlint**, not ESLint.

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "agent": {
+    "name": "rime-agent",
+    "version": "0.1.0"
+  },
+  "codeHash": "0x9a298a0de487791d58ae55188b815115bb6cb169ae3385913697d6ca70b313ef",
+  "lockfileHash": "0xf2b9a5fc92697daebc6b2ad85cf0fa51b609c6a17564d89e0f63d770d975f53b",
+  "depCount": 22,
+  "scanner": {
+    "name": "rime-scanner",
+    "version": "0.1.0",
+    "policy": "default-v1"
+  },
+  "findings": [
+    {
+      "package": "@adraffy/ens-normalize@1.11.1",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    },
+    {
+      "package": "eventemitter3@5.0.1",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    },
+    {
+      "package": "isows@1.0.7",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    },
+    {
+      "package": "ox@0.14.34",
+      "rule": "typosquat",
+      "severity": "medium",
+      "detail": "name is 2 edit(s) from popular package \"pg\""
+    },
+    {
+      "package": "ox@0.14.34",
+      "rule": "young-version",
+      "severity": "low",
+      "detail": "published 2.8 day(s) ago"
+    },
+    {
+      "package": "scheduler@0.27.0",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    },
+    {
+      "package": "typescript@5.9.3",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    },
+    {
+      "package": "viem@2.55.19",
+      "rule": "typosquat",
+      "severity": "medium",
+      "detail": "name is 2 edit(s) from popular package \"vue\""
+    },
+    {
+      "package": "viem@2.55.19",
+      "rule": "young-version",
+      "severity": "low",
+      "detail": "published 1.7 day(s) ago"
+    },
+    {
+      "package": "ws@8.21.0",
+      "rule": "no-provenance",
+      "severity": "low",
+      "detail": "published without npm provenance attestation"
+    }
+  ],
+  "verdict": "clean",
+  "scannedAt": 1787247754
+}

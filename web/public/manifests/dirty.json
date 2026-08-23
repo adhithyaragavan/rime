@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "agent": {
+    "name": "demo-agent",
+    "version": "0.1.0"
+  },
+  "codeHash": "0xb563b4690d672e56673dea24d4dd16e35c2dc7e25b1a3706588bbad6dfed05aa",
+  "lockfileHash": "0xf99663f2ecc4f848138fda57e8f44c4a98c98cc1cf9d79c9b8ac1dfae1f40d6a",
+  "depCount": 2,
+  "scanner": {
+    "name": "rime-scanner",
+    "version": "0.1.0",
+    "policy": "default-v1"
+  },
+  "findings": [
+    {
+      "package": "evil-pkg@1.0.0",
+      "rule": "egress-in-install",
+      "severity": "critical",
+      "detail": "install script contains network call (fetch())"
+    },
+    {
+      "package": "evil-pkg@1.0.0",
+      "rule": "install-script",
+      "severity": "medium",
+      "detail": "postinstall: node steal.js"
+    },
+    {
+      "package": "evil-pkg@1.0.0",
+      "rule": "obfuscation",
+      "severity": "low",
+      "detail": "install script looks obfuscated: eval/Function construction"
+    }
+  ],
+  "verdict": "dirty",
+  "scannedAt": 1787243252
+}
