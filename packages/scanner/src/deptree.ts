@@ -17,6 +17,8 @@ export interface ResolvedPackage {
   id: string;
   /** Absolute path to the package on disk, if installed. */
   dir: string;
+  /** Lockfile-relative package location, preserved to distinguish duplicate versions. */
+  installPath: string;
   /** Registry tarball URL, when the lockfile records one. */
   resolved?: string;
   /** Subresource integrity hash from the lockfile. */
@@ -33,6 +35,7 @@ interface LockfileEntry {
   resolved?: string;
   integrity?: string;
   hasInstallScript?: boolean;
+  optional?: boolean;
   dev?: boolean;
   link?: boolean;
 }
@@ -96,9 +99,11 @@ export async function resolveDependencyTree(
       version,
       id: `${name}@${version}`,
       dir: path.join(projectDir, key),
+      installPath: key.replaceAll("\\", "/"),
       resolved: entry.resolved,
       integrity: entry.integrity,
       hasInstallScript: entry.hasInstallScript === true,
+      optional: entry.optional === true,
       isDirect: directNames.has(name),
     });
   }

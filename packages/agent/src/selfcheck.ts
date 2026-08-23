@@ -9,19 +9,22 @@
  */
 import { resolveDependencyTree } from "@rime/scanner/src/deptree.ts";
 import { hashDependencySet, type AuditManifest } from "@rime/shared";
+import { dependencyContentHash } from "@rime/shared/src/dependency-content.ts";
 
 export class IntegrityViolation extends Error {
+  readonly field: string;
   readonly expected: string;
   readonly actual: string;
 
-  constructor(expected: string, actual: string) {
+  constructor(field: string, expected: string, actual: string) {
     super(
       `Installed dependency tree does not match the audited manifest.\n` +
-        `  expected lockfileHash: ${expected}\n` +
-        `  actual lockfileHash:   ${actual}\n` +
+        `  expected ${field}: ${expected}\n` +
+        `  actual ${field}:   ${actual}\n` +
         `This container will not start with an unaudited dependency tree.`,
     );
     this.name = "IntegrityViolation";
+    this.field = field;
     this.expected = expected;
     this.actual = actual;
   }
@@ -39,6 +42,11 @@ export async function verifyIntegrityOrThrow(
   const actual = hashDependencySet(packages.map((p) => p.id));
 
   if (actual !== manifest.lockfileHash) {
-    throw new IntegrityViolation(manifest.lockfileHash, actual);
+    throw new IntegrityViolation("lockfileHash", manifest.lockfileHash, actual);
+  }
+
+  const actualContentHash = await dependencyContentHash(packages);
+  if (actualContentHash !== manifest.dependencyContentHash) {
+    throw new IntegrityViolation("dependencyContentHash", manifest.dependencyContentHash, actualContentHash);
   }
 }

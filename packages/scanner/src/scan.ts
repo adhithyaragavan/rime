@@ -22,6 +22,7 @@ import { fetchRegistryMeta } from "./registry.ts";
 import { ALL_HEURISTICS } from "./heuristics/index.ts";
 import { isOsvScannerAvailable, runOsvScanner } from "./external/osv.ts";
 import { runAuditSignatures } from "./external/npm-audit-signatures.ts";
+import { dependencyContentHash } from "@rime/shared/src/dependency-content.ts";
 
 export interface ScanOptions {
   projectDir: string;
@@ -40,6 +41,7 @@ export async function scan(options: ScanOptions): Promise<AuditManifest> {
   const { projectDir, agentName, agentVersion, offline = false, skipExternal = false } = options;
 
   const packages = await resolveDependencyTree(projectDir);
+  const installedDependencyHash = await dependencyContentHash(packages);
   const registryMeta = offline ? new Map() : await fetchRegistryMeta(packages);
 
   const findings: Finding[] = [];
@@ -59,6 +61,7 @@ export async function scan(options: ScanOptions): Promise<AuditManifest> {
     agent: { name: agentName, version: agentVersion },
     codeHash: await hashAgentSource(projectDir),
     lockfileHash: hashDependencySet(packages.map((p) => p.id)),
+    dependencyContentHash: installedDependencyHash,
     depCount: packages.length,
     scanner: { name: "rime-scanner", version: SCANNER_VERSION, policy: POLICY },
     findings,

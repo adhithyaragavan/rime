@@ -21,6 +21,7 @@ function manifest(overrides: Partial<AuditManifest> = {}): AuditManifest {
     agent: { name: "demo-agent", version: "0.1.0" },
     codeHash: `0x${"11".repeat(32)}`,
     lockfileHash: hashDependencySet(["a@1.0.0", "b@2.0.0"]),
+    dependencyContentHash: `0x${"22".repeat(32)}`,
     depCount: 2,
     scanner: { name: "rime", version: "0.1.0", policy: "default-v1" },
     findings: [],
@@ -49,6 +50,13 @@ test("auditHash ignores findings order", () => {
 
 test("auditHash changes when a finding is added", () => {
   assert.notEqual(auditHash(manifest()), auditHash(manifest({ findings })));
+});
+
+test("auditHash changes when dependency content changes", () => {
+  assert.notEqual(
+    auditHash(manifest()),
+    auditHash(manifest({ dependencyContentHash: `0x${"33".repeat(32)}` })),
+  );
 });
 
 test("hashDependencySet dedupes and ignores ordering", () => {

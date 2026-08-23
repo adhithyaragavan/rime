@@ -16,8 +16,10 @@ function pkg(overrides: Partial<ResolvedPackage> = {}): ResolvedPackage {
     version: "1.0.0",
     id: "evil-pkg@1.0.0",
     dir: "/tmp/evil-pkg",
+    installPath: "node_modules/evil-pkg",
     hasInstallScript: true,
     isDirect: false,
+    optional: false,
     ...overrides,
   };
 }

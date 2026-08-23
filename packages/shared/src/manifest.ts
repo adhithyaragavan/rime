@@ -35,6 +35,8 @@ export interface AuditManifest {
   codeHash: Hex;
   /** keccak256 over the resolved dependency set. See hashDependencySet. */
   lockfileHash: Hex;
+  /** sha256 root over the actual installed package files and lockfile package metadata. */
+  dependencyContentHash: Hex;
   /** Number of resolved packages, including transitive. Display only. */
   depCount: number;
   scanner: {
