@@ -15,6 +15,10 @@ library QuoteBuilder {
     {
         quote = new bytes(TDXQuote.REPORT_DATA_OFFSET + TDXQuote.REPORT_DATA_LENGTH);
 
+        // Version field (little-endian uint16) at offset 0 — must read as 4.
+        quote[0] = bytes1(uint8(TDXQuote.EXPECTED_VERSION));
+        quote[1] = 0x00;
+
         // MRTD occupies 48 bytes at MRTD_OFFSET; write mrtd's 32 bytes then pad.
         _writeAt(quote, TDXQuote.MRTD_OFFSET, abi.encodePacked(mrtd, bytes16(0)));
         _writeAt(quote, TDXQuote.REPORT_DATA_OFFSET, abi.encodePacked(reportDataHi, reportDataLo));

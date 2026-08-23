@@ -19,8 +19,8 @@ import {IDcapAttestation} from "../src/interfaces/IDcapAttestation.sol";
  *                               defaults to "false" (raw) only so this script has a value
  *                               to fall back to, not because that's a safe default to trust.
  *
- * Usage:
- *   forge script script/Deploy.s.sol --rpc-url $AUTOMATA_TESTNET_RPC --broadcast
+ * Usage (Base Sepolia — Automata's own testnet is retired, see contracts/README.md):
+ *   forge script script/Deploy.s.sol --rpc-url https://base-sepolia-rpc.publicnode.com --broadcast
  */
 contract Deploy is Script {
     function run() external {

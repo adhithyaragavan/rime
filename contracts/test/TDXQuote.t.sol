@@ -37,9 +37,20 @@ contract TDXQuoteTest is Test {
 
     function test_revertsOnShortQuote() public {
         bytes memory tooShort = new bytes(10);
+        // Correctly-versioned but short — exercises the MRTD length guard,
+        // not the version guard.
+        tooShort[0] = bytes1(uint8(TDXQuote.EXPECTED_VERSION));
         vm.expectRevert(
             abi.encodeWithSelector(TDXQuote.QuoteTooShort.selector, 10, TDXQuote.MRTD_OFFSET + TDXQuote.MRTD_LENGTH)
         );
         harness.measurement(tooShort);
+    }
+
+    function test_revertsOnUnsupportedVersion() public {
+        bytes memory quote = QuoteBuilder.build(bytes32(0), bytes32(0), bytes32(0));
+        quote[0] = 0x03; // version 3, not the supported v4
+
+        vm.expectRevert(abi.encodeWithSelector(TDXQuote.UnsupportedQuoteVersion.selector, uint16(3)));
+        harness.measurement(quote);
     }
 }
