@@ -22,8 +22,11 @@ one check — see "Never drop" in the plan.
 - [x] `web` — React status page: on-chain certificate panel with live freshness countdown, manifest panel with findings table and client-side hash re-verification against the chain. Typechecks and builds clean; not yet wired to a real deployment.
 - [x] **Real quote fixture (`fixtures/real-quote.hex`)** — from a real GCP TDX Confidential VM (Phala Cloud's account top-up failed, so this went a different route — see below).
 - [x] **The gate: a real quote verifies against Automata's actual on-chain verifier on Base Sepolia.** `cast call ... verifyAndAttestOnChain(...)` → `true`, with our commitment echoed back in the return data. This was the single biggest open risk in the whole design, and it's now settled on real hardware, not just the simulator.
-- [ ] `AgentRegistry`/`GatedVault` not yet deployed to Base Sepolia — blocked only on a funded wallet (faucet, no card).
-- [ ] End-to-end rehearsal of the three demo acts against a real deployment.
+- [x] **`AgentRegistry`/`GatedVault` deployed to Base Sepolia.**
+  Registry: [`0x7e1cd19060a1179efaCC0c40d649131337129a43`](https://sepolia.basescan.org/address/0x7e1cd19060a1179efaCC0c40d649131337129a43),
+  Vault: [`0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4`](https://sepolia.basescan.org/address/0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4).
+  Constructor state verified on-chain: `dcap` matches the real Automata verifier, `freshnessWindow=1800`, `reportDataIsHashed=false`.
+- [ ] End-to-end rehearsal of the three demo acts against the real deployment — needs the agent actually running on real TDX hardware to call `certify()` live.
 
 ## Phala Cloud is blocked — read this before trying to deploy the agent there
 
@@ -109,13 +112,17 @@ substitute for the real thing.
 
 ## Remaining action item
 
-1. Get a Base Sepolia wallet funded via a faucet (no card needed — e.g. the
-   Coinbase Developer Platform faucet). Put the private key in a local
-   `.env` (copy from `.env.example`) — don't paste it into chat.
-2. Deploy: `forge script contracts/script/Deploy.s.sol --rpc-url
-   https://base-sepolia-rpc.publicnode.com --broadcast`, with
-   `REPORT_DATA_IS_HASHED=false` (confirmed correct, see above).
-3. Wire the deployed addresses into `web/.env`.
-4. Rehearse the three demo acts (clean → certify → withdraw succeeds;
+Contracts are deployed and `web/.env` is wired to them (both `.env` files
+are gitignored — the deploy wallet and a freshly-generated agent identity
+live only locally, not in git). What's left:
+
+1. Get the agent actually running on real TDX hardware (a GCP TDX
+   Confidential VM, or Phala Cloud once unblocked) with `AGENT_PRIVATE_KEY`
+   set to the agent identity in `.env`, so it can call `certify()` for real.
+2. Rehearse the three demo acts (clean → certify → withdraw succeeds;
    tampered → certify reverts; stale → withdraw reverts) and record the
    video.
+
+If time is short, `fixtures/real-quote.hex` plus a `cast call` to
+`verifyAndAttestOnChain` is a legitimate, honest fallback for demonstrating
+the core claim without a live agent running — see `contracts/README.md`.

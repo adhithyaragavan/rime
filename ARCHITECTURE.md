@@ -299,8 +299,13 @@ table — not just trusting a docs page, and now further confirmed by
 actually calling it with a real quote — see above). Full detail and
 re-verification steps in `contracts/README.md`.
 
-`AgentRegistry`/`GatedVault` are not yet deployed to Base Sepolia — that's
-the next step, blocked only on a funded wallet (faucet, no card needed).
+**Deployed** to Base Sepolia:
+`AgentRegistry` at `0x7e1cd19060a1179efaCC0c40d649131337129a43`,
+`GatedVault` at `0x02C036CfC7647a4eaE02444549B1d87A3Bd18ef4`. Constructor
+state verified by reading it back on-chain (`dcap`, `owner`,
+`freshnessWindow`, `reportDataIsHashed` all match what `Deploy.s.sol` was
+given). No agent has called `certify()` against this deployment yet —
+`isCertified()` correctly returns `false`.
 
 ## Local dev tooling notes
 
