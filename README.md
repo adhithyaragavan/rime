@@ -1,120 +1,219 @@
 # Rime
 
-Verifiable supply-chain integrity for AI agents. Full context:
-`~/.claude/plans/5-verifiable-supply-chain-integrity-misty-sonnet.md`
-(original plan) and `~/.claude/plans/okay-so-what-could-sleepy-donut.md`
-(getting a real quote and the deploy-time debugging trail).
+Verifiable supply-chain integrity for AI agents.
 
-**The claim this project makes, in one sentence:** an `AgentRegistry` certificate
-means "this agent's audited dependency tree ran, unmodified, inside a genuine
-TDX enclave, as of `issuedAt`" — not merely "an enclave ran something once."
-That distinction is entirely the `report_data` binding in
-`packages/shared/src/reportdata.ts` / `contracts/src/AgentRegistry.sol`. If
-you're short on time, everything else in this repo is scaffolding for that
-one check — see "Never drop" in the plan.
+## The problem
 
-## Status
+Intel TDX can prove an enclave is genuine — memory encrypted by the chip,
+sealed from the host operator. What it *can't* prove is **what's running
+inside it**.
 
-- [x] `packages/shared` — manifest schema, canonical hashing, commitment encoding. 10/10 tests.
-- [x] `packages/scanner` — dep-tree walk, 6 heuristics, osv-scanner + npm-audit-signatures wraps. 25/25 tests (shared+scanner combined).
-- [x] `contracts` — TDXQuote parsing, AgentRegistry, GatedVault, Deploy script. 20/20 tests, all against a mock verifier.
-- [x] `packages/agent` — attest.ts, selfcheck.ts, index.ts, quote-provider.ts. Proven working end-to-end on real GCP TDX hardware.
-- [x] `web` — React status page: on-chain certificate panel with live freshness countdown, manifest panel with findings table and client-side hash re-verification against the chain. Typechecks and builds clean.
-- [x] **Real quote fixture (`fixtures/real-quote.hex`)** — from a real GCP TDX Confidential VM, via `configfs-tsm`.
-- [x] **The gate: a real quote verifies against Automata's actual on-chain verifier on Base Sepolia.** `cast call ... verifyAndAttestOnChain(...)` → `true`, with our commitment echoed back in the return data. This was the single biggest open risk in the whole design, and it's now settled on real hardware.
-- [x] **`AgentRegistry`/`GatedVault` deployed to Base Sepolia.**
-  Registry: [`0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4`](https://sepolia.basescan.org/address/0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4),
-  Vault: [`0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`](https://sepolia.basescan.org/address/0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336).
-  Constructor state verified on-chain: `dcap` matches the real Automata verifier, `freshnessWindow=1800`, `reportDataIsHashed=false`.
-- [x] **All three demo acts verified for real, on-chain, with real hardware-signed quotes.**
-  - *Clean*: the live agent's `certify()` succeeded on the production registry — [`0xc10a35fc...`](https://sepolia.basescan.org/tx/0xc10a35fc4e1848ad6269338ef682c75c136102d0d689a09c2574b6b88c8bb3fc), `isCertified()` returned `true`.
-  - *Tampered*: a real quote's report_data cross-checked against a deliberately wrong `auditHash` — `certify()` reverted with `CommitmentMismatch(expected, got)`, both values fully decoded.
-  - *Stale*: a throwaway registry with a 15-second freshness window — `isCertified()` was `true` immediately after certifying, `false` 20 seconds later.
-  No demo video — this project isn't doing one. The live agent VM (`rime-agent-live`) has been **stopped and deleted**; see "Live agent" below to bring it back if needed.
+A hijacked npm `postinstall` script runs just as happily inside a perfectly
+real, perfectly sealed enclave as clean code would. The hardware will attest
+to it without complaint, because the hardware was never asked that question.
+Attestation that can't tell you what it's attesting to is trust theater.
 
-## Chain: Base Sepolia — see `contracts/README.md`
+That's the gap Rime closes.
 
-Correction from the original plan: Automata's own testnet is retired.
-`contracts/README.md` has the verified working chain/address and how to
-re-verify it yourself.
+## What a certificate means
 
-## Local dev
+An `AgentRegistry` certificate for agent address `A` means:
+
+> The dependency tree audited as `auditHash` was scanned clean (or its
+> findings are known), and a genuine TDX enclave holding `A`'s key attested
+> to running exactly that tree, no more than `freshnessWindow` seconds ago.
+
+Not "an enclave ran something once" — off-the-shelf TEE hosting already gives
+you that. The narrow thing this repo adds is binding an **audit verdict** into
+the **hardware attestation**, and enforcing a **freshness window** on-chain.
+
+Everything else here is scaffolding for that one check.
+
+## How it works
+
+```
+┌─────────────┐     ┌───────────────┐     ┌──────────────┐
+│   BUILD      │     │   RUNTIME      │     │   CHAIN      │
+│ (your laptop)│     │ (TDX guest VM) │     │ (Base Sepolia)│
+└─────────────┘     └───────────────┘     └──────────────┘
+       │                     │                     │
+  scan deps            self-check tree      AgentRegistry
+  → AuditManifest      against baked-in     .certify(
+  → auditHash =        manifest, refuse            quote,
+    keccak256(          boot on mismatch          auditHash,
+    canonical(m))       │                          epoch)
+       │                commitment =                │
+       │                keccak256(abi.encode(  ┌─────┴─────┐
+       │                auditHash, agent,      │  verify   │
+       │                epoch))                │  quote is │
+       │                │                      │  genuine  │
+       └───────────────► write commitment to    │  TDX (via │
+                         configfs-tsm inblob,    │  Automata │
+                         read quote from         │  DCAP)    │
+                         outblob                 └─────┬─────┘
+                         │                              │
+                         heartbeat: re-certify           check
+                         every ~25 min (< 30 min         report_data
+                         freshness window)                == commitment
+                                                           │
+                                                     certs[agent] =
+                                                     {auditHash, mr,
+                                                      issuedAt,
+                                                      expiresAt}
+                                                           │
+                                                     GatedVault
+                                                     .withdraw()
+                                                     requires
+                                                     isCertified()
+```
+
+Two ideas make this work.
+
+**One value crosses every boundary unchanged: `auditHash`.** It's computed
+once, by the scanner, at build time. It is never recomputed by anything that
+could be compromised — the agent's boot-time self-check *compares against*
+the manifest baked into its image, it doesn't generate a fresh one. And it's
+the value that gets hardware-signed into the quote. Break any link in that
+chain and the final on-chain check fails.
+
+**`certify()` checks three things**, in `contracts/src/AgentRegistry.sol`:
+
+1. `dcap.verifyAndAttestOnChain(quote)` — is this really TDX hardware? (We
+   call Automata's deployed verifier; we don't reimplement DCAP.)
+2. An optional measurement allowlist — is this a VM image we recognize? (Off
+   by default.)
+3. `report_data == keccak256(abi.encode(auditHash, agent, epoch))` — **this
+   is the entire point of the project.** The audit verdict is inside the
+   hardware-signed payload, so it can't be swapped after the scan without the
+   enclave re-attesting to a different value.
+
+A certificate then expires. A cert from six months ago says nothing about
+what's running now, so agents re-attest on a heartbeat and consumers check
+`isCertified()`, which is false the moment the window lapses.
+
+## The pieces
+
+| Package | What it contributes |
+|---|---|
+| `packages/shared` | The frozen interfaces. `auditHash()` and `buildCommitment()` — each mirrored by a Solidity equivalent that **must** encode identically, or `certify()` reverts on-chain. |
+| `packages/scanner` | Produces the `AuditManifest`. Walks the dependency tree from `package-lock.json`, runs six heuristics, wraps osv-scanner and `npm audit signatures`. External tools fail open — a missing binary never crashes a scan. |
+| `contracts` | Where the claim is enforced rather than asserted. `AgentRegistry.certify()` does the three checks above; `GatedVault` gates withdrawals on `isCertified()`. |
+| `packages/agent` | The enclave runtime. Loads its baked-in manifest → self-checks the installed tree against it and refuses to boot on mismatch → requests a quote via `configfs-tsm` → calls `certify()`, then re-certifies on a heartbeat. |
+| `web` | Status page. Polls the registry directly and **recomputes `auditHash()` client-side** to check against what's on-chain, rather than trusting a displayed value. |
+
+## Verify it yourself
+
+Deployed on Base Sepolia (chain id 84532):
+
+| | |
+|---|---|
+| `AgentRegistry` | [`0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4`](https://sepolia.basescan.org/address/0xdA507A1C65E070Bb40F75e23a7eCd65B6B7189A4) |
+| `GatedVault` | [`0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336`](https://sepolia.basescan.org/address/0x32382F3F0Ec4BC6E98d3d17B8BBDa2D33d31d336) |
+| Automata DCAP verifier | [`0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF`](https://sepolia.basescan.org/address/0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF) |
+
+Constructor state was verified by reading it back on-chain: `dcap` matches
+the real Automata verifier, `freshnessWindow=1800`, `reportDataIsHashed=false`.
+
+**The load-bearing fact — a real hardware quote is accepted by the real
+verifier.** `fixtures/real-quote.hex` came off a genuine GCP TDX Confidential
+VM via `configfs-tsm`. Run this yourself, no hardware needed:
+
+```bash
+cast call 0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF \
+  "verifyAndAttestOnChain(bytes)(bool,bytes)" \
+  "0x$(cat fixtures/real-quote.hex)" \
+  --rpc-url https://base-sepolia-rpc.publicnode.com
+# → true, with the commitment echoed back in the returned bytes
+```
+
+**A real agent certified for real.** A live agent running on TDX hardware
+submitted [`0xc10a35fc…`](https://sepolia.basescan.org/tx/0xc10a35fc4e1848ad6269338ef682c75c136102d0d689a09c2574b6b88c8bb3fc)
+against the production registry; `isCertified()` returned `true`. Two
+companion behaviours were confirmed the same way: a deliberately wrong
+`auditHash` reverts with a fully decoded `CommitmentMismatch(expected, got)`,
+and against a throwaway registry built with a 15-second window,
+`isCertified()` flipped to `false` once it lapsed.
+
+Certificates expire by design, so any given cert will read as stale later —
+that's the freshness window working, not a failure. Re-run the agent to mint
+a fresh one.
+
+**Tests:** 37 TypeScript (`shared` 16, `scanner` 17, `agent` 4) and 21
+Solidity. The Solidity tests run against `MockDcapAttestation` — hardware
+signature verification is Automata's job, not something re-tested here.
+
+```bash
+node --test packages/shared/test/*.test.ts packages/scanner/test/*.test.ts packages/agent/test/*.test.ts
+cd contracts && forge test -vv
+```
+
+## Run it locally
 
 ```bash
 npm install
-node --test packages/shared/test/*.test.ts packages/scanner/test/*.test.ts packages/agent/test/*.test.ts
 
-cd contracts && forge test -vv && cd ..
-
-cd web && npm run build && cd ..   # typecheck + production build
-
-# Scanner, standalone:
+# Scan a project — writes rime.manifest.json, prints the auditHash
 node --experimental-strip-types packages/scanner/src/cli.ts <project-dir> [--offline] [--fast]
+
+# Status page against the live deployment
+cd web && npm run dev        # http://localhost:5173/
 ```
 
-## Getting a real TDX quote
+Try the scanner against the two fixtures to see both verdicts:
+`fixtures/demo-project-clean` (clean) and `fixtures/demo-project` (a planted
+`evil-pkg` whose `postinstall` phones home — flagged `critical`).
 
-Quotes come from `configfs-tsm` — the standard Linux TEE attestation
-interface (kernel ≥6.7) — via `packages/agent/src/quote-provider.ts`. This
-only works on a real TDX guest; there's no local simulator.
+`DEMO.md` walks the three behaviours end to end.
 
-```bash
-gcloud compute instances create rime-tdx-probe --zone=us-central1-a \
-  --machine-type=c3-standard-4 --confidential-compute-type=TDX \
-  --maintenance-policy=TERMINATE \
-  --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud
+## Limits
 
-# on the VM:
-sudo apt-get install -y linux-modules-extra-gcp && sudo modprobe tdx_guest
+Stated plainly, because they're real:
 
-# from the VM (needs root — see ARCHITECTURE.md):
-sudo node --experimental-strip-types scripts/generate-fixture.ts \
-  --out fixtures/real-quote.hex \
-  --audit-hash 0x<32 bytes> --agent 0x<20 bytes> --epoch 1
+- **MRTD/RTMR measure the VM's boot chain, not a specific containerized
+  workload.** There's no container-measurement layer here, so the optional
+  measurement allowlist is a claim about the VM image rather than an exact
+  process. The `report_data` binding and freshness window are unaffected, and
+  `auditHash` plus the boot-time self-check still carry code identity.
+- **The scanner's heuristics catch known supply-chain patterns** — install
+  scripts, egress during install, obfuscation, typosquats, young versions,
+  missing provenance. That's a meaningful filter, not an infallible guarantee.
+- **`GatedVault` is a demo payload**, not a treasury design. It exists to
+  prove the gate works.
+- **DCAP verification is not reimplemented.** We call Automata's deployed,
+  audited verifier by address.
+- **The manifest is never regenerated inside the enclave** — deliberately. An
+  agent that audits its own tree at boot could be fooled the same way the tree
+  itself could be.
 
-gcloud compute instances delete rime-tdx-probe --zone=us-central1-a  # don't forget this — ~$0.20-0.25/hr while running
-```
+## Docs
 
-`c3-standard-*`, Ubuntu 22.04, `us-central1-{a,b,c}` — this is Automata's
-own documented configuration for their `tdx-attestation-sdk`, the same
-verifier this project calls.
+| | |
+|---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | The full picture — why each piece exists, the validated byte offsets, and the `view`/`STATICCALL` bug that only a real deploy could catch. |
+| [`contracts/README.md`](contracts/README.md) | Verified chain/address facts and how to re-verify them yourself. |
+| [`web/README.md`](web/README.md) | Status page specifics and its hard constraints. |
+| [`DEMO.md`](DEMO.md) | A walkthrough of the three behaviours, in order. |
 
-## Live agent
+## Running the live agent
 
-Ran as `rime-agent-live` (GCP, `us-central1-a`, `c3-standard-4`) — a
-systemd service (`rime-agent.service`) re-certifying every 25 minutes.
-**It's been stopped and deleted** (a running TDX VM costs ~$0.20–0.25/hr
-the entire time it's up, and there's no ongoing need for it with no demo
-to run). To bring it back:
+The agent runs as a systemd service on a GCP TDX Confidential VM, re-certifying
+every 25 minutes. The VM is **not currently running** — a TDX VM costs
+~$0.20–0.25/hr, so it gets deleted when idle.
 
 ```bash
 gcloud compute instances create rime-agent-live --zone=us-central1-a \
   --machine-type=c3-standard-4 --confidential-compute-type=TDX \
   --maintenance-policy=TERMINATE \
   --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud
-# then: install linux-modules-extra-gcp + modprobe tdx_guest + Node 22,
-# copy the repo + .env over, npm install, and the systemd unit described
-# in ARCHITECTURE.md's "Live agent" section.
 
-# check on it / stop it again
-gcloud compute ssh rime-agent-live --zone=us-central1-a --command="sudo systemctl status rime-agent.service --no-pager"
-gcloud compute instances delete rime-agent-live --zone=us-central1-a
+# on the VM: install linux-modules-extra-gcp + modprobe tdx_guest + Node 22,
+# copy the repo + .env over, npm install, then the systemd unit in
+# ARCHITECTURE.md's "Live agent" section.
+
+gcloud compute instances delete rime-agent-live --zone=us-central1-a   # when done
 ```
 
-Agent identity: `0x5ac20A5A6bf88338aF2651a4263023D2A68636bC` — funded
-directly from the deploy wallet (an agent's signing key needs its own gas
-to submit `certify()`, separate from whatever funded the deploy). Both
-wallets are on faucet-scale balances (fractions of a cent) — top up via a
-faucet or a small transfer from the deploy wallet before reactivating.
-
-## State
-
-Everything the core claim depends on has been proven for real, on-chain:
-the report_data binding, the freshness window, and the DCAP hardware
-check — see "Status" above for the three verified acts, and
-`contracts/README.md` / `ARCHITECTURE.md` for the full trail including the
-`view`/`STATICCALL` bug that blocked the first deploy attempt.
-
-`fixtures/real-quote.hex` plus a `cast call` to `verifyAndAttestOnChain`
-remains the fastest way to re-demonstrate the core claim without spinning
-up hardware — see `contracts/README.md`.
+Setup details, the systemd unit, and the wallet-funding note are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md)'s "Live agent" section. To capture a
+fresh quote rather than run the full agent, `scripts/generate-fixture.ts`
+does just that on the same VM — see "Local dev tooling notes" there.
