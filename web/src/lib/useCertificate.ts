@@ -10,6 +10,11 @@
  * (registry, agent) key it was fetched for, so switching registries reads
  * as "loading" on render immediately rather than needing an extra
  * synchronous setState reset inside the effect.
+ *
+ * Demo mode (VITE_DEMO_MODE=true): when the on-chain certificate is expired,
+ * time-shifts issuedAt/expiresAt forward so the countdown is live. The real
+ * auditHash and measurement from on-chain are preserved — only timestamps
+ * are shifted. This lets the demo run without a live TDX VM re-certifying.
  */
 import { useEffect, useState } from "react";
 import { createPublicClient, http, type Address } from "viem";
@@ -35,6 +40,31 @@ type TaggedResult = { key: string; query: CertQuery };
 
 const client = createPublicClient({ chain: baseSepolia, transport: http(RPC_URL) });
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+
+/**
+ * In demo mode, if the certificate is expired, shift timestamps forward
+ * so the certificate appears freshly issued. The window length (expiresAt -
+ * issuedAt) is preserved from the real on-chain data. The shift is computed
+ * once per page load so the countdown runs naturally from that point.
+ */
+const demoStartedAt = Math.floor(Date.now() / 1000);
+
+function maybeDemoShift(cert: CertificateState): CertificateState {
+  if (!DEMO_MODE) return cert;
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Only shift if the certificate is actually expired
+  if (cert.expiresAt > nowSec) return cert;
+
+  const window = cert.expiresAt - cert.issuedAt; // original freshness window
+  return {
+    ...cert,
+    issuedAt: demoStartedAt,
+    expiresAt: demoStartedAt + window,
+  };
+}
+
 export function useCertificate(registry: Address, agent: Address): CertQuery {
   const key = `${registry}:${agent}`;
   const [result, setResult] = useState<TaggedResult>({ key, query: { status: "loading" } });
@@ -52,21 +82,20 @@ export function useCertificate(registry: Address, agent: Address): CertQuery {
         });
         if (cancelled) return;
 
-        setResult({
-          key,
-          query:
-            issuedAt === 0n
-              ? { status: "uncertified" }
-              : {
-                  status: "ok",
-                  cert: {
-                    auditHash,
-                    measurement,
-                    issuedAt: Number(issuedAt),
-                    expiresAt: Number(expiresAt),
-                  },
-                },
-        });
+        if (issuedAt === 0n) {
+          setResult({ key, query: { status: "uncertified" } });
+        } else {
+          const raw: CertificateState = {
+            auditHash,
+            measurement,
+            issuedAt: Number(issuedAt),
+            expiresAt: Number(expiresAt),
+          };
+          setResult({
+            key,
+            query: { status: "ok", cert: maybeDemoShift(raw) },
+          });
+        }
       } catch (err) {
         if (!cancelled) {
           setResult({ key, query: { status: "error", message: err instanceof Error ? err.message : String(err) } });
@@ -84,3 +113,4 @@ export function useCertificate(registry: Address, agent: Address): CertQuery {
 
   return result.key === key ? result.query : { status: "loading" };
 }
+
